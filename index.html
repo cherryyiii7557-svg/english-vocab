@@ -248,6 +248,19 @@ take part in | phr. | 參加 | to join an activity
     </div>
 
     <div class="card-box">
+      <h3>🔊 發音設定（美式英語）</h3>
+      <div class="form-row">
+        <label>朗讀聲音</label>
+        <select id="voiceSelect" style="flex:1;min-width:220px"></select>
+      </div>
+      <div class="row">
+        <button id="btnTestVoice">測試發音（apple / banana）</button>
+        <span class="hint-text" id="voiceHint">選「自動」會為每台裝置挑最標準的美式英語聲音。</span>
+      </div>
+      <p class="hint-text" style="margin-top:8px">建議優先選名稱含 <b>Natural</b> 或 <b>Online</b> 的美式聲音（最自然標準）；切換後會立即朗讀測試。此設定會存在各裝置本機，手機與電腦可分開設定。</p>
+    </div>
+
+    <div class="card-box">
       <h3>資料備份</h3>
       <div class="row">
         <button id="btnExport">匯出資料 (JSON)</button>
@@ -412,11 +425,59 @@ function escapeHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+/* ===================== 美式發音 ===================== */
+const LS_VOICE = "ewtool-voice";
+let voicesCache = [];
+
+function refreshVoices() {
+  if (!("speechSynthesis" in window)) return;
+  voicesCache = window.speechSynthesis.getVoices();
+  renderVoiceSelect();
+}
+if ("speechSynthesis" in window) {
+  refreshVoices();
+  window.speechSynthesis.addEventListener("voiceschanged", refreshVoices);
+}
+function usVoices() {
+  return voicesCache.filter(v => (v.lang || "").replace("_", "-").toLowerCase().indexOf("en-us") === 0);
+}
+function pickVoice() {
+  const list = usVoices();
+  if (!list.length) return null;
+  const saved = localStorage.getItem(LS_VOICE);
+  if (saved) { const v = list.find(x => x.name === saved); if (v) return v; }
+  const prefs = ["natural", "neural", "online", "google us english", "samantha", "zira", "aria", "jenny", "guy", "david", "alex"];
+  for (const p of prefs) { const v = list.find(x => x.name.toLowerCase().includes(p)); if (v) return v; }
+  return list[0];
+}
+function renderVoiceSelect() {
+  const sel = document.getElementById("voiceSelect");
+  if (!sel) return;
+  const list = usVoices();
+  const saved = localStorage.getItem(LS_VOICE);
+  let html = `<option value="">自動（建議）</option>`;
+  list.forEach(v => { html += `<option value="${escapeHtml(v.name)}">${escapeHtml(v.name)}</option>`; });
+  sel.innerHTML = html;
+  sel.value = saved && list.some(v => v.name === saved) ? saved : "";
+  const hint = document.getElementById("voiceHint");
+  if (hint) hint.textContent = list.length
+    ? `此裝置偵測到 ${list.length} 個美式英語聲音，可在此切換並測試。`
+    : "此裝置找不到美式英語聲音，將改用系統預設朗讀。";
+}
+document.getElementById("voiceSelect").addEventListener("change", e => {
+  if (e.target.value) localStorage.setItem(LS_VOICE, e.target.value);
+  else localStorage.removeItem(LS_VOICE);
+  speak("apple");
+});
+document.getElementById("btnTestVoice").addEventListener("click", () => speak("apple banana"));
+
 function speak(text) {
   if (!("speechSynthesis" in window)) return;
   window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
-  u.lang = "en-US"; u.rate = 0.88;
+  const v = pickVoice();
+  if (v) u.voice = v;
+  u.lang = "en-US"; u.rate = 0.85; u.pitch = 1;
   window.speechSynthesis.speak(u);
 }
 function speakBtn(text) {
